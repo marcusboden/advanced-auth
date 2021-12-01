@@ -1,0 +1,42 @@
+# Copyright 2021 Canonical
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+options:
+  users:
+    default: ""
+    type: string
+    description: |
+      List of (username; Gecos Name; SSH pub key) tuples.
+      Fields must be separated by semicolons ';'.
+
+      Example:
+      alice;Alice;<ssh_pub_key>
+      bob;Bob;<ssh_pub_key>
+      monitoring;Remote Monitoring;<ssh_pub_key>
+  group:
+    default: ""
+    type: string
+    description: |
+      Group name for users managed by the charm.
+  backup-path:
+    default: /var/lib/misc/charm-local-users/backup
+    type: string
+    description: |
+      Location on the unit that will be used for storing backups of home directories of removed users.
+  allow-existing-users:
+    default: False
+    type: boolean
+    description:
+      When set to False the charm will enter 'blocked' state when user exists in 'users' config and in the system, but not in the charm managed group.
+      Setting to True disables that protection and allows for pre-existing users to be added to the charm managed group.
