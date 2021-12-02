@@ -11,7 +11,7 @@ options:
       bob;Bob;<ssh_pub_key>
       monitoring;Remote Monitoring;<ssh_pub_key>
   group:
-    default: ""
+    default: charm-managed
     type: string
     description: |
       Group name for users managed by the charm.
