@@ -6,7 +6,8 @@ Charm Local Users is a subordinate charm for creating and managing local user ac
 on principal units. It can be related to any application using the `juju-info` interface.
 
 It can be used to set up an unprivileged user for a hardware inventory system or grant access to
-staff members.
+staff members. It's intended for scenarios where you need to manage a relatively small number of
+users - 1-10 accounts rather than hundreds.
 
 Privileged users and management of privileges are out of scope. Integration with external identity
 providers, such as LDAP or AD, is also out of scope.

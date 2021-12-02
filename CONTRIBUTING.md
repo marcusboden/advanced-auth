@@ -31,7 +31,7 @@ access to the system by configuring their public SSH keys.
 
 Out of scope:
 - Privileged users or management of privileges
-- User management at scale -  this is intended for approximately 1-5 users total
+- User management at scale - this is intended for approximately 1-10 users total
 - Integration with LDAP, AD and other external identity providers
 
 ## Testing
