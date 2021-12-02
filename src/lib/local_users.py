@@ -27,6 +27,8 @@ log = logging.getLogger(__name__)
 
 User = namedtuple("User", ["name", "gecos", "ssh_key"])
 
+HOME_DIR_PATH = "/home"
+
 
 def add_user(username, shell="/bin/bash", home_dir=None, gecos=None):
     """Add a user to the system."""
@@ -102,15 +104,16 @@ def remove_group(group_name):
 
 def rename_group(old_name, new_name):
     """Rename the `old_name` group to `new_name` using `groupmod` command."""
-    cmd = ["groupmod", "-n", new_name, old_name]
-    subprocess.check_call(cmd)
+    if old_name != new_name:
+        cmd = ["groupmod", "-n", new_name, old_name]
+        subprocess.check_call(cmd)
 
 
 def set_ssh_authorized_key(user):
     """Idempotently set up the SSH public key in `authorized_keys`."""
     comment = "# charm-local-users"
     authorized_key = " ".join([user.ssh_key, comment])
-    ssh_path = os.path.join("/home", user.name, ".ssh")
+    ssh_path = os.path.join(HOME_DIR_PATH, user.name, ".ssh")
     authorized_keys_path = os.path.join(ssh_path, "authorized_keys")
     if not os.path.exists(ssh_path):
         os.makedirs(ssh_path, mode=0o700)

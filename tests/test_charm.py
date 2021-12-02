@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import unittest
+from unittest.mock import patch
 
 from charm import CharmLocalUsersCharm
+from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
 
 
@@ -23,3 +25,74 @@ class TestCharm(unittest.TestCase):
         self.harness = Harness(CharmLocalUsersCharm)
         self.addCleanup(self.harness.cleanup)
         self.harness.begin()
+
+    @patch("os.makedirs")
+    @patch("charmhelpers.core.host.group_exists")
+    @patch("charm.rename_group")
+    @patch("charm.get_group_users")
+    @patch("charmhelpers.core.host.add_group")
+    @patch("charm.configure_user")
+    def test_config_changed(
+        self,
+        mock_conf_user,
+        mock_add_group,
+        mock_get_gr_users,
+        mock_rename,
+        mock_exists,
+        _,
+    ):
+        # group doesn't exist yet
+        mock_exists.return_value = False
+
+        # correct configuration
+        self.harness.update_config(
+            {"group": "testgroup", "users": "test1;Test 1;key1\ntest2;Test 2;key2"}
+        )
+        # a new group must be created
+        mock_add_group.assert_called_once_with("testgroup")
+        # first execution, no rename expected
+        mock_rename.assert_not_called()
+        mock_get_gr_users.assert_called_once()
+        # 2 users to configure
+        self.assertEqual(mock_conf_user.call_count, 2)
+        # everything went well
+        self.assertIsInstance(self.harness.model.unit.status, ActiveStatus)
+
+    @patch("os.makedirs")
+    @patch("charmhelpers.core.host.group_exists")
+    @patch("charm.rename_group")
+    @patch("charm.get_group_users")
+    @patch("charmhelpers.core.host.add_group")
+    @patch("charm.configure_user")
+    def test_config_changed_invalid_userlist(
+        self,
+        mock_conf_user,
+        mock_add_group,
+        mock_get_gr_users,
+        mock_rename,
+        mock_exists,
+        _,
+    ):
+        # group doesn't exist yet
+        mock_exists.return_value = False
+
+        # empty users list
+        self.harness.update_config(
+            {"group": "testgroup", "users": ";User with no name;\n"}
+        )
+
+        # a new group must be created
+        mock_add_group.assert_called_once_with("testgroup")
+        # first execution, no rename expected
+        mock_rename.assert_not_called()
+        # we shouldn't be comapring with existing users if the config is invalid
+        mock_get_gr_users.assert_not_called()
+        # no users to configure
+        mock_conf_user.assert_not_called()
+        # we should enter blocked state
+        self.assertIsInstance(self.harness.model.unit.status, BlockedStatus)
+
+    @patch("os.makedirs")
+    def test_empty_group_config(self, _):
+        self.harness.update_config({"group": "", "users": "test;;"})
+        self.assertIsInstance(self.harness.model.unit.status, BlockedStatus)
