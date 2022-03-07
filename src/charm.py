@@ -27,6 +27,7 @@ from charmhelpers.core import host
 
 from lib.local_users import (
     configure_user,
+    check_sudoers_file,
     delete_user,
     get_group_users,
     is_unmanaged_user,
@@ -34,6 +35,7 @@ from lib.local_users import (
     remove_group,
     rename_group,
     User,
+    write_sudoers_file,
 )
 
 log = logging.getLogger(__name__)
@@ -99,8 +101,27 @@ class CharmLocalUsersCharm(CharmBase):
                 log.error(error_msg)
                 self.unit.status = BlockedStatus(error_msg)
                 return
-            gecos = parse_gecos(u[1])
-            user = User(u[0], gecos, u[2])
+
+        _unique_users = lambda x:list(set([y.split(';')[0] for y in x]))
+        unique_users = _unique_users(users)
+        log.debug(f"List of users: {unique_users}")
+        user_objects = {}
+        for username in unique_users:
+            user_objects[username] = {}
+            user_objects[username]['authorized_keys'] = []
+
+        for line in users:
+            u = line.split(";")
+            user_objects[u[0]]['name'] = u[0]
+            user_objects[u[0]]['gecos'] = parse_gecos(u[1])
+            user_objects[u[0]]['authorized_keys'].append(u[2])
+
+        for username in unique_users:
+            user = User(
+                    user_objects[username]['name'],
+                    user_objects[username]['gecos'],
+                    user_objects[username]['authorized_keys'],
+                    )
             userlist.append(user)
 
         # check if there are any conflicts between the user list in the config and on the unit,
@@ -131,6 +152,16 @@ class CharmLocalUsersCharm(CharmBase):
         # configure user accounts specified in the config
         for user in userlist:
             configure_user(user, group)
+
+        # configure custom /etc/sudoers.d file
+        sudoers = self.config["sudoers"]
+        error, msg = check_sudoers_file(sudoers)
+        if error:
+            log.error(msg)
+            self.unit.status = BlockedStatus(msg)
+            return
+        else:
+            write_sudoers_file(sudoers)
 
         self.unit.status = ActiveStatus()
 

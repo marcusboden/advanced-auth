@@ -5,11 +5,15 @@ options:
     description: |
       List of (username; Gecos Name; SSH pub key) tuples.
       Fields must be separated by semicolons ';'.
+      Multiple ssh keys can be provided per user by adding multiple lines
+      with the same username and gecos.
 
       Example:
       alice;Alice;<ssh_pub_key>
       bob;Bob;<ssh_pub_key>
-      monitoring;Remote Monitoring;<ssh_pub_key>
+      monitoring;Remote Monitoring;<ssh_pub_key1>
+      monitoring;Remote Monitoring;<ssh_pub_key2>
+      monitoring;Remote Monitoring;<ssh_pub_key3>
   group:
     default: charm-managed
     type: string
@@ -26,3 +30,18 @@ options:
     description:
       When set to False the charm will enter 'blocked' state when user exists in 'users' config and in the system, but not in the charm managed group.
       Setting to True disables that protection and allows for pre-existing users to be added to the charm managed group.
+  sudoers:
+    default: ""
+    type: string
+    description: |
+      Custom /etc/sudoers.d file. File name is 70-local-users-charm
+      Visudo is used to check for syntax errors and print them in the charm status and more verbose in juju debug logs.
+
+      Example:
+      Cmnd_Alias ALLOWED_CMDS =  /usr/sbin/dmidecode, \
+                                 /usr/sbin/hwinfo, \
+                                 /sbin/ifconfig, \
+                                 /bin/ps
+
+      myuser ALL = (ALL) NOPASSWD: ALLOWED_CMDS
+
