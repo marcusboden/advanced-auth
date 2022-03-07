@@ -200,12 +200,10 @@ def check_sudoers_file(sudoers):
     check_cmd = "visudo -c -f {}".format(TMP_SUDOERS_FILE)
     log.debug("Checking sudoers file: {}".format(check_cmd))
     run = subprocess.run(
-            check_cmd.split(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-            )
+        check_cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
     log.debug("Stdout: {}, Stderr: {}".format(run.stdout, run.stderr))
-    log.debug("Cleaning up {}". format(TMP_SUDOERS_FILE))
+    log.debug("Cleaning up {}".format(TMP_SUDOERS_FILE))
     os.remove(TMP_SUDOERS_FILE)
     return run.returncode, run.stdout
 

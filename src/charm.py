@@ -94,6 +94,7 @@ class CharmLocalUsersCharm(CharmBase):
         # parse user list from the config
         users = self.config["users"].splitlines()
         userlist = []
+        usernames = []
         for line in users:
             u = line.split(";")
             if len(u) != 3 or not u[0]:
@@ -101,27 +102,27 @@ class CharmLocalUsersCharm(CharmBase):
                 log.error(error_msg)
                 self.unit.status = BlockedStatus(error_msg)
                 return
+            usernames.append(u[0])
 
-        _unique_users = lambda x:list(set([y.split(';')[0] for y in x]))
-        unique_users = _unique_users(users)
+        unique_users = list(set(usernames))
         log.debug(f"List of users: {unique_users}")
         user_objects = {}
         for username in unique_users:
             user_objects[username] = {}
-            user_objects[username]['authorized_keys'] = []
+            user_objects[username]["authorized_keys"] = []
 
         for line in users:
             u = line.split(";")
-            user_objects[u[0]]['name'] = u[0]
-            user_objects[u[0]]['gecos'] = parse_gecos(u[1])
-            user_objects[u[0]]['authorized_keys'].append(u[2])
+            user_objects[u[0]]["name"] = u[0]
+            user_objects[u[0]]["gecos"] = parse_gecos(u[1])
+            user_objects[u[0]]["authorized_keys"].append(u[2])
 
         for username in unique_users:
             user = User(
-                    user_objects[username]['name'],
-                    user_objects[username]['gecos'],
-                    user_objects[username]['authorized_keys'],
-                    )
+                user_objects[username]["name"],
+                user_objects[username]["gecos"],
+                user_objects[username]["authorized_keys"],
+            )
             userlist.append(user)
 
         # check if there are any conflicts between the user list in the config and on the unit,
