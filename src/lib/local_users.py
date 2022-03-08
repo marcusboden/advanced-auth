@@ -19,15 +19,17 @@ import shutil
 import re
 import subprocess
 import logging
+import tempfile
 from collections import namedtuple
 
 from charmhelpers.core import host
 
 log = logging.getLogger(__name__)
 
-User = namedtuple("User", ["name", "gecos", "ssh_key"])
+User = namedtuple("User", ["name", "gecos", "ssh_keys"])
 
 HOME_DIR_PATH = "/home"
+SUDOERS_FILE = "/etc/sudoers.d/70-local-users-charm"
 
 
 def add_user(username, shell="/bin/bash", home_dir=None, gecos=None):
@@ -57,7 +59,7 @@ def configure_user(user, group):
             gecos=user.gecos,
         )
     host.add_user_to_group(user.name, group)
-    set_ssh_authorized_key(user)
+    set_ssh_authorized_keys(user)
     update_gecos(user)
 
 
@@ -109,10 +111,13 @@ def rename_group(old_name, new_name):
         subprocess.check_call(cmd)
 
 
-def set_ssh_authorized_key(user):
+def set_ssh_authorized_keys(user):
     """Idempotently set up the SSH public key in `authorized_keys`."""
     comment = "# charm-local-users"
-    authorized_key = " ".join([user.ssh_key, comment])
+    authorized_keys = []
+    for ssh_key in user.ssh_keys:
+        authorized_key = " ".join([ssh_key, comment])
+        authorized_keys.append(authorized_key)
     ssh_path = os.path.join(HOME_DIR_PATH, user.name, ".ssh")
     authorized_keys_path = os.path.join(ssh_path, "authorized_keys")
     if not os.path.exists(ssh_path):
@@ -131,7 +136,8 @@ def set_ssh_authorized_key(user):
     regex = re.compile(r"charm-local-users")
     new_keys = [i for i in current_keys if not regex.search(i)]
     # (re-)add the charm managed key
-    new_keys.append(authorized_key + "\n")
+    for authorized_key in authorized_keys:
+        new_keys.append(authorized_key + "\n")
     with open(authorized_keys_path, "w+") as keys_file:
         for key in new_keys:
             keys_file.write(key)
@@ -182,3 +188,35 @@ def parse_gecos(raw):
         except IndexError:
             gecos[i] = ""
     return gecos
+
+
+def check_sudoers_file(sudoers):
+    if sudoers == "":
+        log.debug("Skipping sudoers check, config is not set.")
+        return 0
+    sudoers_file = tempfile.NamedTemporaryFile(delete=False)
+    sudoers_file.write(sudoers.encode())
+    sudoers_file.close()
+    check_cmd = "visudo -c -f {}".format(sudoers_file.name)
+    log.debug("Checking sudoers file: {}".format(check_cmd))
+    run = subprocess.run(
+        check_cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    log.debug("Stdout: {}, Stderr: {}".format(run.stdout, run.stderr))
+    log.debug("Cleaning up {}".format(sudoers_file.name))
+    os.remove(sudoers_file.name)
+    return run.returncode
+
+
+def write_sudoers_file(sudoers):
+    if sudoers == "":
+        if os.path.exists(SUDOERS_FILE):
+            os.remove(SUDOERS_FILE)
+    else:
+        NEW_FILE = SUDOERS_FILE + ".new"
+        with open(NEW_FILE, "w+") as sudoers_file:
+            sudoers_file.write("# This file is managed by Juju, do not edit.\n")
+            sudoers_file.write(sudoers)
+            sudoers_file.close()
+        os.chmod(NEW_FILE, 0o440)
+        os.replace(NEW_FILE, SUDOERS_FILE)

@@ -33,19 +33,27 @@ class TestLocalUsers(unittest.TestCase):
         )
 
         with TemporaryDirectory() as fake_home:
-            testfile_path = os.path.join(fake_home, "testuser", ".ssh", "authorized_keys")
+            testfile_path = os.path.join(
+                fake_home, "testuser", ".ssh", "authorized_keys"
+            )
             with patch("lib.local_users.HOME_DIR_PATH", fake_home):
                 local_users.set_ssh_authorized_key(testuser)
                 with open(testfile_path, "r") as f:
                     keys = f.readlines()
-                    self.assertIn("ssh-rsa ABC testuser@testhost # charm-local-users\n", keys)
+                    self.assertIn(
+                        "ssh-rsa ABC testuser@testhost # charm-local-users\n", keys
+                    )
 
                 # update the key
                 local_users.set_ssh_authorized_key(testuser2)
                 with open(testfile_path, "r") as f:
                     keys = f.readlines()
-                    self.assertIn("ssh-rsa XYZ testuser@testhost # charm-local-users\n", keys)
-                    self.assertNotIn("ssh-rsa ABC testuser@testhost # charm-local-users\n", keys)
+                    self.assertIn(
+                        "ssh-rsa XYZ testuser@testhost # charm-local-users\n", keys
+                    )
+                    self.assertNotIn(
+                        "ssh-rsa ABC testuser@testhost # charm-local-users\n", keys
+                    )
 
     def test_parse_gecos(self):
         test_cases = [
@@ -97,7 +105,9 @@ class TestLocalUsers(unittest.TestCase):
 
     def test_update_gecos(self):
         # ensure that only fields that changed are passed to chfn
-        testcase = namedtuple("testcase", ["prev", "updated", "expected", "should_call"])
+        testcase = namedtuple(
+            "testcase", ["prev", "updated", "expected", "should_call"]
+        )
 
         # NOTE: order of chfn flags in GECOS fields order is: -f -r -w -h -o
         testcases = [

@@ -27,6 +27,7 @@ from charmhelpers.core import host
 
 from lib.local_users import (
     configure_user,
+    check_sudoers_file,
     delete_user,
     get_group_users,
     is_unmanaged_user,
@@ -34,6 +35,7 @@ from lib.local_users import (
     remove_group,
     rename_group,
     User,
+    write_sudoers_file,
 )
 
 log = logging.getLogger(__name__)
@@ -92,6 +94,7 @@ class CharmLocalUsersCharm(CharmBase):
         # parse user list from the config
         users = self.config["users"].splitlines()
         userlist = []
+        usernames = []
         for line in users:
             u = line.split(";")
             if len(u) != 3 or not u[0]:
@@ -99,8 +102,27 @@ class CharmLocalUsersCharm(CharmBase):
                 log.error(error_msg)
                 self.unit.status = BlockedStatus(error_msg)
                 return
-            gecos = parse_gecos(u[1])
-            user = User(u[0], gecos, u[2])
+            usernames.append(u[0])
+
+        unique_users = list(set(usernames))
+        log.debug(f"List of users: {unique_users}")
+        user_objects = {}
+        for username in unique_users:
+            user_objects[username] = {}
+            user_objects[username]["authorized_keys"] = []
+
+        for line in users:
+            username, gecos, ssh_key = line.split(";")
+            user_objects[username]["name"] = username
+            user_objects[username]["gecos"] = parse_gecos(gecos)
+            user_objects[username]["authorized_keys"].append(ssh_key)
+
+        for username in unique_users:
+            user = User(
+                user_objects[username]["name"],
+                user_objects[username]["gecos"],
+                user_objects[username]["authorized_keys"],
+            )
             userlist.append(user)
 
         # check if there are any conflicts between the user list in the config and on the unit,
@@ -131,6 +153,16 @@ class CharmLocalUsersCharm(CharmBase):
         # configure user accounts specified in the config
         for user in userlist:
             configure_user(user, group)
+
+        # Configure custom /etc/sudoers.d file
+        sudoers = self.config["sudoers"]
+        error = check_sudoers_file(sudoers)
+        if error:
+            msg = "parse error in sudoers config, check juju debug-log for more information"
+            self.unit.status = BlockedStatus(msg)
+            return
+        else:
+            write_sudoers_file(sudoers)
 
         self.unit.status = ActiveStatus()
 
