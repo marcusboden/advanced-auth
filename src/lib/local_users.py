@@ -19,6 +19,7 @@ import shutil
 import re
 import subprocess
 import logging
+import tempfile
 from collections import namedtuple
 
 from charmhelpers.core import host
@@ -28,7 +29,6 @@ log = logging.getLogger(__name__)
 User = namedtuple("User", ["name", "gecos", "ssh_keys"])
 
 HOME_DIR_PATH = "/home"
-TMP_SUDOERS_FILE = "/tmp/70-local-users-charm"
 SUDOERS_FILE = "/etc/sudoers.d/70-local-users-charm"
 
 
@@ -193,19 +193,19 @@ def parse_gecos(raw):
 def check_sudoers_file(sudoers):
     if sudoers == "":
         log.debug("Skipping sudoers check, config is not set.")
-        return 0, 0
-    with open(TMP_SUDOERS_FILE, "w+") as sudoers_file:
-        sudoers_file.write(sudoers)
-        sudoers_file.close()
-    check_cmd = "visudo -c -f {}".format(TMP_SUDOERS_FILE)
+        return 0
+    sudoers_file = tempfile.NamedTemporaryFile(delete=False)
+    sudoers_file.write(sudoers.encode())
+    sudoers_file.close()
+    check_cmd = "visudo -c -f {}".format(sudoers_file.name)
     log.debug("Checking sudoers file: {}".format(check_cmd))
     run = subprocess.run(
         check_cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
     log.debug("Stdout: {}, Stderr: {}".format(run.stdout, run.stderr))
-    log.debug("Cleaning up {}".format(TMP_SUDOERS_FILE))
-    os.remove(TMP_SUDOERS_FILE)
-    return run.returncode, run.stdout
+    log.debug("Cleaning up {}".format(sudoers_file.name))
+    os.remove(sudoers_file.name)
+    return run.returncode
 
 
 def write_sudoers_file(sudoers):
@@ -213,7 +213,10 @@ def write_sudoers_file(sudoers):
         if os.path.exists(SUDOERS_FILE):
             os.remove(SUDOERS_FILE)
     else:
-        with open(SUDOERS_FILE, "w+") as sudoers_file:
+        NEW_FILE = SUDOERS_FILE + ".new"
+        with open(NEW_FILE, "w+") as sudoers_file:
+            sudoers_file.write("# This file is managed by Juju, do not edit.\n")
             sudoers_file.write(sudoers)
             sudoers_file.close()
-        os.chmod(SUDOERS_FILE, 0o440)
+        os.chmod(NEW_FILE, 0o440)
+        os.replace(NEW_FILE, SUDOERS_FILE)

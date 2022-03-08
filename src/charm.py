@@ -112,10 +112,10 @@ class CharmLocalUsersCharm(CharmBase):
             user_objects[username]["authorized_keys"] = []
 
         for line in users:
-            u = line.split(";")
-            user_objects[u[0]]["name"] = u[0]
-            user_objects[u[0]]["gecos"] = parse_gecos(u[1])
-            user_objects[u[0]]["authorized_keys"].append(u[2])
+            username, gecos, ssh_key = line.split(";")
+            user_objects[username]["name"] = username
+            user_objects[username]["gecos"] = parse_gecos(gecos)
+            user_objects[username]["authorized_keys"].append(ssh_key)
 
         for username in unique_users:
             user = User(
@@ -154,11 +154,11 @@ class CharmLocalUsersCharm(CharmBase):
         for user in userlist:
             configure_user(user, group)
 
-        # configure custom /etc/sudoers.d file
+        # Configure custom /etc/sudoers.d file
         sudoers = self.config["sudoers"]
-        error, msg = check_sudoers_file(sudoers)
+        error = check_sudoers_file(sudoers)
         if error:
-            log.error(msg)
+            msg = "parse error in sudoers config, check juju debug-log for more information"
             self.unit.status = BlockedStatus(msg)
             return
         else:
