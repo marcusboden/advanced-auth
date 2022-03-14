@@ -4,6 +4,3 @@ bases:
     channel: "20.04"
   - name: "ubuntu"
     channel: "18.04"
-parts:
-  charm:
-    charm-python-packages: [setuptools < 58]

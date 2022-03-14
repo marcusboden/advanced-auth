@@ -20,6 +20,7 @@ import re
 import subprocess
 import logging
 import tempfile
+import grp
 from collections import namedtuple
 
 from charmhelpers.core import host
@@ -179,7 +180,7 @@ def update_gecos(user):
 
 
 def parse_gecos(raw):
-    """Helper to convert a raw GECOS string into a 5 elements list."""
+    """Convert a raw GECOS string into a 5 elements list."""
     gecos = [""] * 5
     fields = raw.split(",")
     for i in range(5):
@@ -220,3 +221,49 @@ def write_sudoers_file(sudoers):
             sudoers_file.close()
         os.chmod(NEW_FILE, 0o440)
         os.replace(NEW_FILE, SUDOERS_FILE)
+
+
+def group_exists(groupname):
+    """Check if a group exists."""
+    try:
+        grp.getgrnam(groupname)
+        group_exists = True
+    except KeyError:
+        group_exists = False
+    return group_exists
+
+
+def add_group(group_name, system_group=False, gid=None):
+    """Add a group to the system.
+
+    Will log but otherwise succeed if the group already exists.
+    :param str group_name: group to create
+    :param bool system_group: Create system group
+    :param int gid: GID for user being created
+    :returns: The password database entry struct, as returned by `grp.getgrnam`
+    """
+    try:
+        group_info = grp.getgrnam(group_name)
+        log('group {0} already exists!'.format(group_name))
+        if gid:
+            group_info = grp.getgrgid(gid)
+            log('group with gid {0} already exists!'.format(gid))
+    except KeyError:
+        log('creating group {0}'.format(group_name))
+        add_new_group(group_name, system_group, gid)
+        group_info = grp.getgrnam(group_name)
+    return group_info
+
+
+def add_new_group(group_name, system_group=False, gid=None):
+    cmd = ['addgroup']
+    if gid:
+        cmd.extend(['--gid', str(gid)])
+    if system_group:
+        cmd.append('--system')
+    else:
+        cmd.extend([
+            '--group',
+        ])
+    cmd.append(group_name)
+    subprocess.check_call(cmd)

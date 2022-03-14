@@ -23,13 +23,13 @@ from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus
 
-from charmhelpers.core import host
-
 from lib.local_users import (
+    add_group,
     configure_user,
     check_sudoers_file,
     delete_user,
     get_group_users,
+    group_exists,
     is_unmanaged_user,
     parse_gecos,
     remove_group,
@@ -76,7 +76,7 @@ class CharmLocalUsersCharm(CharmBase):
             self.unit.status = BlockedStatus("'group' config option value is required")
             return
 
-        if not host.group_exists(group):
+        if not group_exists(group):
             if self._stored.group and self._stored.group != group:
                 log.debug(
                     "renaming charm managed group: '%s' to '%s'",
@@ -85,7 +85,7 @@ class CharmLocalUsersCharm(CharmBase):
                 )
                 rename_group(self._stored.group, group)
             else:
-                host.add_group(group)
+                add_group(group)
 
         # save the current managed group name in StoredState so that the charm can detect if rename
         # is needed on future config_changed events
