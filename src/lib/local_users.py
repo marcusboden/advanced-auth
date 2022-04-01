@@ -244,12 +244,12 @@ def add_group(group_name, system_group=False, gid=None):
     """
     try:
         group_info = grp.getgrnam(group_name)
-        log('group {0} already exists!'.format(group_name))
+        log.debug('group {0} already exists!'.format(group_name))
         if gid:
             group_info = grp.getgrgid(gid)
-            log('group with gid {0} already exists!'.format(gid))
+            log.debug('group with gid {0} already exists!'.format(gid))
     except KeyError:
-        log('creating group {0}'.format(group_name))
+        log.debug('creating group {0}'.format(group_name))
         add_new_group(group_name, system_group, gid)
         group_info = grp.getgrnam(group_name)
     return group_info
