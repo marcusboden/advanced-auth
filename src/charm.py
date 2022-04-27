@@ -23,7 +23,7 @@ from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus
 
-from lib.local_users import (
+from local_users import (
     add_group,
     configure_user,
     check_sudoers_file,

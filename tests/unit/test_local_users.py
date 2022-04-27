@@ -22,14 +22,15 @@ from lib import local_users
 
 
 class TestLocalUsers(unittest.TestCase):
+    @patch("shutil.chown")
     @patch("os.chmod")
-    def test_set_ssh_authorized_key_update(self, _):
+    def test_set_ssh_authorized_keys_update(self, *args, **kwargs):
         testuser = local_users.User(
-            "testuser", ["Test User", "", "", "", ""], "ssh-rsa ABC testuser@testhost"
+            "testuser", ["Test User", "", "", "", ""], ["ssh-rsa ABC testuser@testhost"]
         )
 
         testuser2 = local_users.User(
-            "testuser", ["Test User", "", "", "", ""], "ssh-rsa XYZ testuser@testhost"
+            "testuser", ["Test User", "", "", "", ""], ["ssh-rsa XYZ testuser@testhost"]
         )
 
         with TemporaryDirectory() as fake_home:
@@ -37,7 +38,7 @@ class TestLocalUsers(unittest.TestCase):
                 fake_home, "testuser", ".ssh", "authorized_keys"
             )
             with patch("lib.local_users.HOME_DIR_PATH", fake_home):
-                local_users.set_ssh_authorized_key(testuser)
+                local_users.set_ssh_authorized_keys(testuser)
                 with open(testfile_path, "r") as f:
                     keys = f.readlines()
                     self.assertIn(
@@ -45,7 +46,7 @@ class TestLocalUsers(unittest.TestCase):
                     )
 
                 # update the key
-                local_users.set_ssh_authorized_key(testuser2)
+                local_users.set_ssh_authorized_keys(testuser2)
                 with open(testfile_path, "r") as f:
                     keys = f.readlines()
                     self.assertIn(
@@ -66,6 +67,7 @@ class TestLocalUsers(unittest.TestCase):
             (",,,,,,ignored", ["", "", "", "", ""]),
             (",,,,'other' field", ["", "", "", "", "'other' field"]),
         ]
+
         for tc in test_cases:
             result = local_users.parse_gecos(tc[0])
             self.assertEqual(result, tc[1])
@@ -87,7 +89,8 @@ class TestLocalUsers(unittest.TestCase):
             (
                 # all fields
                 "testuser",
-                b"testuser:x:1000:1000:Test User,ACME,+123,+321,test:/home/testuser:/usr/bin/bash",
+                b"testuser:x:1000:1000:Test User,ACME,+123,+321,test:/home/testuser:"
+                b"/usr/bin/bash",
                 ["Test User", "ACME", "+123", "+321", "test"],
             ),
             (
@@ -97,6 +100,7 @@ class TestLocalUsers(unittest.TestCase):
                 ["Test", "", "", "", ""],
             ),
         ]
+
         for tc in testcases:
             with patch("subprocess.check_output") as mock_cmd:
                 mock_cmd.return_value = tc[1]
@@ -121,6 +125,7 @@ class TestLocalUsers(unittest.TestCase):
             ),
             testcase(["A", "", "", "", ""], ["B", "", "", "", ""], ["-f", "B"], True),
         ]
+
         for tc in testcases:
             with patch("lib.local_users.get_gecos") as mock_prev, patch(
                 "subprocess.check_call"
@@ -128,6 +133,7 @@ class TestLocalUsers(unittest.TestCase):
                 u = local_users.User("test", tc.updated, "")
                 mock_prev.return_value = tc.prev
                 local_users.update_gecos(u)
+
                 if tc.should_call:
                     expected_cmd = ["chfn"] + tc.expected + ["test"]
                     mock_call.assert_called_once_with(expected_cmd)
