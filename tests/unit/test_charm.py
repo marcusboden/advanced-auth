@@ -30,7 +30,7 @@ class TestCharm(unittest.TestCase):
     @patch("charmhelpers.core.host.group_exists")
     @patch("src.charm.rename_group")
     @patch("src.charm.get_group_users")
-    @patch("charmhelpers.core.host.add_group")
+    @patch("src.charm.add_group")
     @patch("src.charm.configure_user")
     def test_config_changed(
         self,
@@ -62,7 +62,7 @@ class TestCharm(unittest.TestCase):
     @patch("charmhelpers.core.host.group_exists")
     @patch("src.charm.rename_group")
     @patch("src.charm.get_group_users")
-    @patch("charmhelpers.core.host.add_group")
+    @patch("src.charm.add_group")
     @patch("src.charm.configure_user")
     def test_config_changed_invalid_userlist(
         self,
