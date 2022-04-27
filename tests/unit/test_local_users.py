@@ -23,7 +23,7 @@ from lib import local_users
 
 class TestLocalUsers(unittest.TestCase):
     @patch("os.chmod")
-    def test_set_ssh_authorized_key_update(self, _):
+    def test_set_ssh_authorized_keys_update(self, _):
         testuser = local_users.User(
             "testuser", ["Test User", "", "", "", ""], "ssh-rsa ABC testuser@testhost"
         )
@@ -37,7 +37,7 @@ class TestLocalUsers(unittest.TestCase):
                 fake_home, "testuser", ".ssh", "authorized_keys"
             )
             with patch("lib.local_users.HOME_DIR_PATH", fake_home):
-                local_users.set_ssh_authorized_key(testuser)
+                local_users.set_ssh_authorized_keys(testuser)
                 with open(testfile_path, "r") as f:
                     keys = f.readlines()
                     self.assertIn(
@@ -45,7 +45,7 @@ class TestLocalUsers(unittest.TestCase):
                     )
 
                 # update the key
-                local_users.set_ssh_authorized_key(testuser2)
+                local_users.set_ssh_authorized_keys(testuser2)
                 with open(testfile_path, "r") as f:
                     keys = f.readlines()
                     self.assertIn(

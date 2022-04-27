@@ -15,7 +15,7 @@
 import unittest
 from unittest.mock import patch
 
-from charm import CharmLocalUsersCharm
+from src.charm import CharmLocalUsersCharm
 from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
 
@@ -28,10 +28,10 @@ class TestCharm(unittest.TestCase):
 
     @patch("os.makedirs")
     @patch("charmhelpers.core.host.group_exists")
-    @patch("charm.rename_group")
-    @patch("charm.get_group_users")
+    @patch("src.charm.rename_group")
+    @patch("src.charm.get_group_users")
     @patch("charmhelpers.core.host.add_group")
-    @patch("charm.configure_user")
+    @patch("src.charm.configure_user")
     def test_config_changed(
         self,
         mock_conf_user,
@@ -60,10 +60,10 @@ class TestCharm(unittest.TestCase):
 
     @patch("os.makedirs")
     @patch("charmhelpers.core.host.group_exists")
-    @patch("charm.rename_group")
-    @patch("charm.get_group_users")
+    @patch("src.charm.rename_group")
+    @patch("src.charm.get_group_users")
     @patch("charmhelpers.core.host.add_group")
-    @patch("charm.configure_user")
+    @patch("src.charm.configure_user")
     def test_config_changed_invalid_userlist(
         self,
         mock_conf_user,
