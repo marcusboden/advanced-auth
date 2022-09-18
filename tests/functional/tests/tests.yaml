@@ -1,0 +1,16 @@
+charm_name: local-users
+gate_bundles:
+  - jammy
+  - focal
+  - bionic
+dev_bundles:
+  - jammy
+tests:
+  - tests.test_local_users.TestLocalUsers
+target_deploy_status:
+  local-users:
+    workload-status: active
+    workload-status-message-regex: "^$"
+  ubuntu:
+    workload-status: active
+    workload-status-message-regex: "^$"

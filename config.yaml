@@ -30,6 +30,13 @@ options:
     description:
       When set to False the charm will enter 'blocked' state when user exists in 'users' config and in the system, but not in the charm managed group.
       Setting to True disables that protection and allows for pre-existing users to be added to the charm managed group.
+  ssh-authorized-keys:
+    default: "$HOME/.ssh/authorized_keys"
+    type: string
+    description: |
+      The file to write the SSH public keys to.
+      This option supports the usage of variables "$USER", "$HOME" and "$UID" in the path string.
+      They will be expanded to the username, home directory and the user id of each user.
   sudoers:
     default: ""
     type: string

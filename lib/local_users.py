@@ -17,11 +17,14 @@
 import grp
 import logging
 import os
+import pwd
 import re
 import shutil
 import subprocess
 import tempfile
 from collections import namedtuple
+from pathlib import Path
+from typing import Text
 
 from charmhelpers.core import host
 
@@ -29,7 +32,6 @@ log = logging.getLogger(__name__)
 
 User = namedtuple("User", ["name", "gecos", "ssh_keys"])
 
-HOME_DIR_PATH = "/home"
 SUDOERS_FILE = "/etc/sudoers.d/70-local-users-charm"
 
 
@@ -48,7 +50,7 @@ def add_user(username, shell="/bin/bash", home_dir=None, gecos=None):
     subprocess.check_call(cmd)
 
 
-def configure_user(user, group):
+def configure_user(user, group, authorized_keys_path):
     """Idempotently apply requested User configuration.
 
     Create a new account if it doesn't exist. Ensure it belongs to the requested group.
@@ -63,7 +65,7 @@ def configure_user(user, group):
             gecos=user.gecos,
         )
     host.add_user_to_group(user.name, group)
-    set_ssh_authorized_keys(user)
+    set_ssh_authorized_keys(user, authorized_keys_path)
     update_gecos(user)
 
 
@@ -121,7 +123,27 @@ def rename_group(old_name, new_name):
         subprocess.check_call(cmd)
 
 
-def set_ssh_authorized_keys(user):
+def _substitute_path_vars_for_user(path: Path, username: Text) -> Path:
+    """Substitute common variables in terms of a user.
+
+    Supports the variables $HOME, $USER and $UID.
+    """
+    passwd_entry = pwd.getpwnam(username)
+    return Path(
+        str(path)
+        .replace("$HOME", passwd_entry.pw_dir)
+        .replace("$USER", passwd_entry.pw_name)
+        .replace("$UID", str(passwd_entry.pw_uid))
+    )
+
+
+def _path_under_user_home(path: Path, username: Text) -> bool:
+    """Test whether the given path lies inside the user home."""
+    passwd_entry = pwd.getpwnam(username)
+    return str(path).startswith(passwd_entry.pw_dir + "/")
+
+
+def set_ssh_authorized_keys(user, authorized_keys_path):
     """Idempotently set up the SSH public key in `authorized_keys`."""
     comment = "# charm-local-users"
     authorized_keys = []
@@ -129,21 +151,24 @@ def set_ssh_authorized_keys(user):
     for ssh_key in user.ssh_keys:
         authorized_key = " ".join([ssh_key, comment])
         authorized_keys.append(authorized_key)
-    ssh_path = os.path.join(HOME_DIR_PATH, user.name, ".ssh")
-    authorized_keys_path = os.path.join(ssh_path, "authorized_keys")
 
-    if not os.path.exists(ssh_path):
-        os.makedirs(ssh_path, mode=0o700)
-    os.chmod(ssh_path, 0o700)
-    shutil.chown(ssh_path, user=user.name, group=user.name)
+    authorized_keys_path = _substitute_path_vars_for_user(
+        Path(authorized_keys_path), user.name
+    )
+    ssh_path = authorized_keys_path.parent
+    ssh_path_under_user_home = _path_under_user_home(ssh_path, user.name)
+
+    ssh_path.mkdir(parents=True, exist_ok=True)
+
+    if ssh_path_under_user_home:
+        ssh_path.chmod(mode=0o700)
+        shutil.chown(ssh_path, user=user.name, group=user.name)
 
     # get currently configured keys
     current_keys = []
 
-    if os.path.exists(authorized_keys_path):
-        with open(authorized_keys_path, "r") as keys_file:
-            current_keys = keys_file.readlines()
-            keys_file.close()
+    if authorized_keys_path.exists():
+        current_keys = authorized_keys_path.read_text().splitlines()
 
     # keep the non-managed keys
     regex = re.compile(r"charm-local-users")
@@ -152,16 +177,18 @@ def set_ssh_authorized_keys(user):
 
     for authorized_key in authorized_keys:
         new_keys.append(authorized_key + "\n")
-    with open(authorized_keys_path, "w+") as keys_file:
+    with authorized_keys_path.open("w+") as keys_file:
         for key in new_keys:
             keys_file.write(key)
-        keys_file.close()
 
     # ensure correct permissions
 
-    if os.path.exists(authorized_keys_path):
-        os.chmod(authorized_keys_path, 0o600)
-        shutil.chown(authorized_keys_path, user=user.name, group=user.name)
+    if authorized_keys_path.exists():
+        if ssh_path_under_user_home:
+            authorized_keys_path.chmod(mode=0o600)
+            shutil.chown(authorized_keys_path, user=user.name, group=user.name)
+        else:
+            authorized_keys_path.chmod(mode=0o644)
 
 
 def get_gecos(username):
