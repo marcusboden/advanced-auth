@@ -151,8 +151,9 @@ class CharmLocalUsersCharm(CharmBase):
                 delete_user(u, backup_path)
 
         # configure user accounts specified in the config
+        authorized_keys_path = self.config["ssh-authorized-keys"]
         for user in userlist:
-            configure_user(user, group)
+            configure_user(user, group, authorized_keys_path)
 
         # Configure custom /etc/sudoers.d file
         sudoers = self.config["sudoers"]

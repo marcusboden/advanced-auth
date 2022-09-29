@@ -13,18 +13,68 @@
 # limitations under the License.
 
 import os
+import pwd
 import unittest
 from collections import namedtuple
+from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from lib import local_users
 
 
 class TestLocalUsers(unittest.TestCase):
+    @patch("pwd.getpwnam")
+    def test_substitute_path_vars_for_user(self, mock_getpwnam):
+        mock_getpwnam.return_value = pwd.struct_passwd(
+            ("testuser", "x", 99999, 99999, "Test User", "/home/testuser", "/bin/bash")
+        )
+        self.assertEqual(
+            local_users._substitute_path_vars_for_user(
+                path=Path("/etc/ssh/user-authorized-keys/$USER"), username="testuser"
+            ),
+            Path("/etc/ssh/user-authorized-keys/testuser"),
+        )
+        self.assertEqual(
+            local_users._substitute_path_vars_for_user(
+                path=Path("/etc/ssh/user-authorized-keys/$UID"), username="testuser"
+            ),
+            Path("/etc/ssh/user-authorized-keys/99999"),
+        )
+        self.assertEqual(
+            local_users._substitute_path_vars_for_user(
+                path=Path("$HOME/.ssh/authorized_keys"), username="testuser"
+            ),
+            Path("/home/testuser/.ssh/authorized_keys"),
+        )
+
+    @patch("pwd.getpwnam")
+    def test_path_under_user_home(self, mock_getpwnam):
+        mock_getpwnam.return_value = pwd.struct_passwd(
+            ("testuser", "x", 99999, 99999, "Test User", "/home/testuser", "/bin/bash")
+        )
+        self.assertTrue(
+            local_users._path_under_user_home(
+                path=Path("/home/testuser/.ssh"), username="testuser"
+            )
+        )
+        self.assertFalse(
+            local_users._path_under_user_home(
+                path=Path("/etc/ssh"), username="testuser"
+            )
+        )
+        self.assertFalse(
+            local_users._path_under_user_home(
+                path=Path("/var/home/testuser/.ssh"), username="testuser"
+            )
+        )
+
     @patch("shutil.chown")
-    @patch("os.chmod")
-    def test_set_ssh_authorized_keys_update(self, *args, **kwargs):
+    @patch("pathlib.Path.chmod")
+    @patch("pwd.getpwnam")
+    def test_set_ssh_authorized_keys_update(
+        self, mock_getpwnam, mock_chmod, *args, **kwargs
+    ):
         testuser = local_users.User(
             "testuser", ["Test User", "", "", "", ""], ["ssh-rsa ABC testuser@testhost"]
         )
@@ -34,27 +84,73 @@ class TestLocalUsers(unittest.TestCase):
         )
 
         with TemporaryDirectory() as fake_home:
-            testfile_path = os.path.join(
-                fake_home, "testuser", ".ssh", "authorized_keys"
+            mock_getpwnam.return_value = pwd.struct_passwd(
+                ("testuser", "x", 99999, 99999, "Test User", fake_home, "/bin/bash")
             )
-            with patch("lib.local_users.HOME_DIR_PATH", fake_home):
-                local_users.set_ssh_authorized_keys(testuser)
-                with open(testfile_path, "r") as f:
-                    keys = f.readlines()
-                    self.assertIn(
-                        "ssh-rsa ABC testuser@testhost # charm-local-users\n", keys
-                    )
 
-                # update the key
-                local_users.set_ssh_authorized_keys(testuser2)
-                with open(testfile_path, "r") as f:
-                    keys = f.readlines()
-                    self.assertIn(
-                        "ssh-rsa XYZ testuser@testhost # charm-local-users\n", keys
-                    )
-                    self.assertNotIn(
-                        "ssh-rsa ABC testuser@testhost # charm-local-users\n", keys
-                    )
+            testfile_path = os.path.join(fake_home, ".ssh", "authorized_keys")
+            local_users.set_ssh_authorized_keys(testuser, "$HOME/.ssh/authorized_keys")
+            with open(testfile_path, "r") as f:
+                keys = f.readlines()
+                self.assertIn(
+                    "ssh-rsa ABC testuser@testhost # charm-local-users\n", keys
+                )
+
+            mock_chmod.assert_has_calls(
+                [
+                    call(mode=0o700),  # .ssh directory
+                    call(mode=0o600),  # auth_keys file
+                ]
+            )
+            mock_chmod.reset_mock()
+
+            # update the key
+            local_users.set_ssh_authorized_keys(testuser2, "$HOME/.ssh/authorized_keys")
+            with open(testfile_path, "r") as f:
+                keys = f.readlines()
+                self.assertIn(
+                    "ssh-rsa XYZ testuser@testhost # charm-local-users\n", keys
+                )
+                self.assertNotIn(
+                    "ssh-rsa ABC testuser@testhost # charm-local-users\n", keys
+                )
+
+            mock_chmod.assert_has_calls([call(mode=0o700), call(mode=0o600)])
+
+    @patch("pathlib.Path.chmod")
+    @patch("pwd.getpwnam")
+    def test_set_ssh_authorized_keys_in_etc(
+        self, mock_getpwnam, mock_chmod, *args, **kwargs
+    ):
+        testuser = local_users.User(
+            "testuser", ["Test User", "", "", "", ""], ["ssh-rsa ABC testuser@testhost"]
+        )
+
+        with TemporaryDirectory() as fake_etc:
+            mock_getpwnam.return_value = pwd.struct_passwd(
+                (
+                    "testuser",
+                    "x",
+                    99999,
+                    99999,
+                    "Test User",
+                    "/home/testuser",
+                    "/bin/bash",
+                )
+            )
+
+            testfile_path = os.path.join(
+                fake_etc, "ssh", "user-authorized-keys", "testuser"
+            )
+            local_users.set_ssh_authorized_keys(
+                testuser, f"{fake_etc}/ssh/user-authorized-keys/$USER"
+            )
+            with open(testfile_path, "r") as f:
+                keys = f.readlines()
+                self.assertIn(
+                    "ssh-rsa ABC testuser@testhost # charm-local-users\n", keys
+                )
+        mock_chmod.assert_called_once_with(mode=0o644)
 
     def test_parse_gecos(self):
         test_cases = [

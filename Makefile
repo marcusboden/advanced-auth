@@ -82,11 +82,7 @@ unittests:
 	@echo "Running unit tests"
 	@tox -e unit
 
-snap:
-	@echo "Downloading snap"
-	snap download juju-lint --basename juju-lint --target-directory tests/functional/tests/resources
-
-functional: build snap
+functional: build
 	@echo "Executing functional tests in ${CHARM_BUILD_DIR}"
 	@CHARM_LOCATION=${PROJECTPATH} tox -e func
 
