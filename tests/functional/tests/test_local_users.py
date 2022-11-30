@@ -97,15 +97,15 @@ class TestLocalUsers(unittest.TestCase):
             remote_file="/etc/ssh/user-authorized-keys/testuser",
             expected_contents=expected_ssh_pub_key,
         )
-    
+
     def test_12_update_ssh_key(self):
         """Test replacing the SSH key with a new one"""
         second_pub_key, second_priv_key = generate_keypair()
         zaza.model.set_application_config(
-            self.app_name, {
+            self.app_name,
+            {
                 "users": f"testuser;Test User;{second_pub_key}",
                 "ssh-authorized-keys": "/home/$USER/.ssh/authorized_keys",
-
             },
         )
         self.wait_for_application_states()
