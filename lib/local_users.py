@@ -170,9 +170,7 @@ def get_lp_ssh_keys(lp_user):
 
     output_list = raw_output.stdout.decode().split("\n")
     # Parse ssh key(s) from output
-    lp_ssh_keys = [
-        s for s in output_list if s.startswith("ssh-")
-    ]
+    lp_ssh_keys = [s for s in output_list if s.startswith("ssh-")]
     log.debug(f"SSH keys retrieved for launchpad user {lp_user}")
     return lp_ssh_keys
 
