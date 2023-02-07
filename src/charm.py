@@ -36,6 +36,8 @@ from local_users import (
     rename_group,
     User,
     write_sudoers_file,
+    is_lp_user,
+    get_lp_ssh_keys,
 )
 
 log = logging.getLogger(__name__)
@@ -112,10 +114,30 @@ class CharmLocalUsersCharm(CharmBase):
             user_objects[username]["authorized_keys"] = []
 
         for line in users:
-            username, gecos, ssh_key = line.split(";")
+            username, gecos, ssh_key_input = line.split(";")
+            lp_ssh_keys = []
+            # if 'ssh_key_input' is a launchpad user
+            if is_lp_user(ssh_key_input):
+                lp_user = ssh_key_input
+                # in case it is a launchpad user, fetch their public keys
+                lp_ssh_keys = get_lp_ssh_keys(lp_user)
+                if lp_ssh_keys is None:
+                    error_msg = "Launchpad user provided in config doesn't exist"
+                    log.error(error_msg)
+                    self.unit.status = BlockedStatus(error_msg)
+                    return
+            # if 'ssh_key_input' is an ssh key
+            else:
+                ssh_key = ssh_key_input
+
             user_objects[username]["name"] = username
             user_objects[username]["gecos"] = parse_gecos(gecos)
-            user_objects[username]["authorized_keys"].append(ssh_key)
+            # If the launchpad user was provided, add their ssh keys
+            if lp_ssh_keys:
+                user_objects[username]["authorized_keys"].extend(lp_ssh_keys)
+            # If the ssh public key was directly provided
+            else:
+                user_objects[username]["authorized_keys"].append(ssh_key)
 
         for username in unique_users:
             user = User(

@@ -143,6 +143,40 @@ def _path_under_user_home(path: Path, username: Text) -> bool:
     return str(path).startswith(passwd_entry.pw_dir + "/")
 
 
+def is_lp_user(ssh_key_input):
+    """Check if input is an ssh key or a launchpad user"""
+    if str(ssh_key_input).startswith("lp:"):
+        return True
+    else:
+        return False
+
+
+def get_lp_ssh_keys(lp_user):
+    """
+    Returns list of SSH key(s) for the launchpad user.
+    Returns None in case user doesn't exist.
+    """
+
+    # Send ssh key(s) to stdout instead of adding to authorized_keys
+    cmd = ["ssh-import-id", "-o", "-", lp_user]
+    try:
+        # Combine both stdout and stderr streams into one
+        # 'check' arg raises an exception in case of non-zero exit code
+        raw_output = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True
+        )
+    except subprocess.CalledProcessError:
+        return None
+
+    output_list = raw_output.stdout.decode().split("\n")
+    # Parse ssh key(s) from output
+    lp_ssh_keys = [
+        s for s in output_list if s.startswith("ssh-")
+    ]
+    log.debug(f"SSH keys retrieved for launchpad user {lp_user}")
+    return lp_ssh_keys
+
+
 def set_ssh_authorized_keys(user, authorized_keys_path):
     """Idempotently set up the SSH public key in `authorized_keys`."""
     comment = "# charm-local-users"

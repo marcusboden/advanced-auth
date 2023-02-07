@@ -7,10 +7,14 @@ options:
       Fields must be separated by semicolons ';'.
       Multiple ssh keys can be provided per user by adding multiple lines
       with the same username and gecos.
+      SSH keys can also be retrieved from launchpad by using the launchpad 
+      username prepended with 'lp:'
 
       Example:
       alice;Alice;<ssh_pub_key>
       bob;Bob;<ssh_pub_key>
+      alice;Alice;lp:alice
+      bob;Bob;lp:bobcanonical
       monitoring;Remote Monitoring;<ssh_pub_key1>
       monitoring;Remote Monitoring;<ssh_pub_key2>
       monitoring;Remote Monitoring;<ssh_pub_key3>
