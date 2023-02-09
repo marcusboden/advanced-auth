@@ -116,17 +116,17 @@ class CharmLocalUsersCharm(CharmBase):
         for line in users:
             username, gecos, ssh_key_input = line.split(";")
             lp_ssh_keys = []
-            # if 'ssh_key_input' is a launchpad user
+            # Check if 'ssh_key_input' is a launchpad user
             if is_lp_user(ssh_key_input):
                 lp_user = ssh_key_input
-                # in case it is a launchpad user, fetch their public keys
+                # In case it is a launchpad user, fetch their public keys
                 lp_ssh_keys = get_lp_ssh_keys(lp_user)
                 if lp_ssh_keys is None:
                     error_msg = "Launchpad user provided in config doesn't exist"
                     log.error(error_msg)
                     self.unit.status = BlockedStatus(error_msg)
                     return
-            # if 'ssh_key_input' is an ssh key
+            # In case 'ssh_key_input' is an ssh key
             else:
                 ssh_key = ssh_key_input
 
