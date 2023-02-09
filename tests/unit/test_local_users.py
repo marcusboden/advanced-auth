@@ -19,6 +19,7 @@ from collections import namedtuple
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import call, patch
+from subprocess import CompletedProcess
 
 from lib import local_users
 
@@ -151,6 +152,19 @@ class TestLocalUsers(unittest.TestCase):
                     "ssh-rsa ABC testuser@testhost # charm-local-users\n", keys
                 )
         mock_chmod.assert_called_once_with(mode=0o644)
+
+    def test_check_lp_user(self):
+        test_lp_users = ["lp:test1", "test2"]
+        self.assertTrue(local_users.is_lp_user(test_lp_users[0]))
+        self.assertFalse(local_users.is_lp_user(test_lp_users[1]))
+
+    @patch("subprocess.run")
+    def test_get_lp_ssh_keys(self, mock_sub_run):
+        test_lp_user = "lp:test_lpuser"
+        mock_sub_run.return_value = CompletedProcess(args=['ssh-import-id', '-o', '-', 'lp:test_lpuser'], returncode=0, stdout=b"2023-01-01 10:10:10,100 INFO Authorized key ['2048', 'SHA256:SOMESHA', 'test_lpuser@home', '(RSA)']\n2023-01-01 10:10:10,101 INFO Authorized key ['3072', 'SHA256:ANOTHERSHA', 'test_lpuser@work', '(RSA)']\nssh-rsa ABC test_lpuser@home # ssh-import-id lp:test_lpuser\n\nssh-rsa XYZ test_lpuser@work # ssh-import-id lp:test_lpuser\n\n2023-01-01 10:10:10,112 INFO [2] SSH keys [Authorized]\n")
+
+        test_lp_keys = ["ssh-rsa ABC test_lpuser@home # ssh-import-id lp:test_lpuser","ssh-rsa XYZ test_lpuser@work # ssh-import-id lp:test_lpuser"]
+        self.assertEqual(local_users.get_lp_ssh_keys(test_lp_user), test_lp_keys)
 
     def test_parse_gecos(self):
         test_cases = [
