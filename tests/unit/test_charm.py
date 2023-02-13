@@ -52,7 +52,13 @@ class TestCharm(unittest.TestCase):
         mock_sub_run.return_value = CompletedProcess(
             args=["ssh-import-id", "-o", "-", "lp:test_lpuser"],
             returncode=0,
-            stdout=b"2023-01-01 10:10:10,100 INFO Authorized key ['2048', 'SHA256:SOMESHA', 'test_lpuser@home', '(RSA)']\n2023-01-01 10:10:10,101 INFO Authorized key ['3072', 'SHA256:ANOTHERSHA', 'test_lpuser@work', '(RSA)']\nssh-rsa ABC test_lpuser@home # ssh-import-id lp:test_lpuser\n\nssh-rsa XYZ test_lpuser@work # ssh-import-id lp:test_lpuser\n\n2023-01-01 10:10:10,112 INFO [2] SSH keys [Authorized]\n",
+            stdout=b"2023-01-01 10:10:10,100 INFO Authorized key ['2048',\
+                'SHA256:SOMESHA', 'test_lpuser@home', '(RSA)']\n2023-01-01 \
+                10:10:10,101 INFO Authorized key \
+                ['3072', 'SHA256:ANOTHERSHA', 'test_lpuser@work', '(RSA)'] \
+                \nssh-rsa ABC test_lpuser@home # ssh-import-id lp:test_lpuser \
+                \n\nssh-rsa XYZ test_lpuser@work # ssh-import-id lp:test_lpuser \
+                \n\n2023-01-01 10:10:10,112 INFO [2] SSH keys [Authorized]\n",
         )
 
         # correct configuration
