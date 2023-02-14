@@ -115,28 +115,22 @@ class CharmLocalUsersCharm(CharmBase):
 
         for line in users:
             username, gecos, ssh_key_input = line.split(";")
-            lp_ssh_keys = []
+            user_objects[username]["name"] = username
+            user_objects[username]["gecos"] = parse_gecos(gecos)
             # Check if 'ssh_key_input' is a launchpad user
             if is_lp_user(ssh_key_input):
                 lp_user = ssh_key_input
                 # In case it is a launchpad user, fetch their public keys
                 lp_ssh_keys = get_lp_ssh_keys(lp_user)
                 if lp_ssh_keys is None:
-                    error_msg = "Launchpad user provided in config doesn't exist"
+                    error_msg = "Unable to retrieve SSH public key(s) for provided Launchpad user"
                     log.error(error_msg)
                     self.unit.status = BlockedStatus(error_msg)
                     return
+                user_objects[username]["authorized_keys"].extend(lp_ssh_keys)
             # In case 'ssh_key_input' is an ssh key
             else:
                 ssh_key = ssh_key_input
-
-            user_objects[username]["name"] = username
-            user_objects[username]["gecos"] = parse_gecos(gecos)
-            # If the launchpad user was provided, add their ssh keys
-            if lp_ssh_keys:
-                user_objects[username]["authorized_keys"].extend(lp_ssh_keys)
-            # If the ssh public key was directly provided
-            else:
                 user_objects[username]["authorized_keys"].append(ssh_key)
 
         for username in unique_users:

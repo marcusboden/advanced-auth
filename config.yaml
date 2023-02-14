@@ -14,7 +14,7 @@ options:
       alice;Alice;<ssh_pub_key>
       bob;Bob;<ssh_pub_key>
       alice;Alice;lp:alice
-      bob;Bob;lp:bobcanonical
+      bob;Bob;lp:bob
       monitoring;Remote Monitoring;<ssh_pub_key1>
       monitoring;Remote Monitoring;<ssh_pub_key2>
       monitoring;Remote Monitoring;<ssh_pub_key3>

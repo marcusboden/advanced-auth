@@ -145,10 +145,7 @@ def _path_under_user_home(path: Path, username: Text) -> bool:
 
 def is_lp_user(ssh_key_input):
     """Check if input is an ssh key or a launchpad user"""
-    if str(ssh_key_input).startswith("lp:"):
-        return True
-    else:
-        return False
+    return str(ssh_key_input).startswith("lp:")
 
 
 def get_lp_ssh_keys(lp_user):
@@ -160,18 +157,19 @@ def get_lp_ssh_keys(lp_user):
     # Send ssh key(s) to stdout instead of adding to authorized_keys
     cmd = ["ssh-import-id", "-o", "-", lp_user]
     try:
-        # Combine both stdout and stderr streams into one
         # 'check' arg raises an exception in case of non-zero exit code
-        raw_output = subprocess.run(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True
+        process = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
         )
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as exception:
+        error_msg = exception.stderr.strip().partition("ERROR")[2]
+        log.error(f"Fetching SSH key(s) from Launchpad failed with error: {error_msg}")
         return None
 
-    output_list = raw_output.stdout.decode().split("\n")
+    output_list = process.stdout.split("\n")
     # Parse ssh key(s) from output
     lp_ssh_keys = [s for s in output_list if s.startswith("ssh-")]
-    log.debug(f"SSH keys retrieved for launchpad user {lp_user}")
+    log.debug(f"SSH public key(s) retrieved for launchpad user {lp_user}")
     return lp_ssh_keys
 
 

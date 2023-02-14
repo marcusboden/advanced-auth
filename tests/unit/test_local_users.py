@@ -172,10 +172,11 @@ class TestLocalUsers(unittest.TestCase):
             \nssh-rsa XYZ test_lpuser@work # ssh-import-id lp:test_lpuser\n \
             \n2023-01-01 10:10:10,112 INFO [2] SSH keys [Authorized]\n",
         )
+        invalid_output = CalledProcessError(1, "test_command")
 
         # returns valid_output the first time subprocess.run mock method is called
-        # returns CalledProcessError exception the second time
-        mock_sub_run.side_effect = [valid_output, CalledProcessError(1, "test_command")]
+        # returns invalid_output the second time
+        mock_sub_run.side_effect = [valid_output, invalid_output]
 
         test_lp_keys = [
             "ssh-rsa ABC test_lpuser@home # ssh-import-id lp:test_lpuser",
