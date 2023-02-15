@@ -172,10 +172,22 @@ class TestLocalUsers(unittest.TestCase):
             \nssh-rsa XYZ test_lpuser@work # ssh-import-id lp:test_lpuser\n \
             \n2023-01-01 10:10:10,112 INFO [2] SSH keys [Authorized]\n",
         )
-        output_invalid_user = CalledProcessError(1, "test_command", stderr="2023-01-01 10:10:10,100 ERROR Launchpad user not found")
-        output_no_keys_user = CalledProcessError(1, "test_command", stderr="2023-01-01 10:10:10,100 ERROR No matching keys found for user") 
+        output_invalid_user = CalledProcessError(
+            1,
+            "test_command",
+            stderr="2023-01-01 10:10:10,100 ERROR Launchpad user not found",
+        )
+        output_no_keys_user = CalledProcessError(
+            1,
+            "test_command",
+            stderr="2023-01-01 10:10:10,100 ERROR No matching keys found for user",
+        )
 
-        mock_sub_run.side_effect = [valid_output, output_invalid_user, output_no_keys_user]
+        mock_sub_run.side_effect = [
+            valid_output,
+            output_invalid_user,
+            output_no_keys_user,
+        ]
 
         test_lp_keys = [
             "ssh-rsa ABC test_lpuser@home # ssh-import-id lp:test_lpuser",

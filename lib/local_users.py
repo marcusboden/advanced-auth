@@ -154,7 +154,6 @@ def get_lp_ssh_keys(lp_user):
     Returns None in case user doesn't exist.
     """
 
-    # Send ssh key(s) to stdout instead of adding to authorized_keys
     cmd = ["ssh-import-id", "-o", "-", lp_user]
     try:
         process = subprocess.run(
@@ -162,7 +161,9 @@ def get_lp_ssh_keys(lp_user):
         )
     except subprocess.CalledProcessError as exception:
         error_msg = exception.stderr.strip().partition("ERROR")[2]
-        log.error(f"Fetching SSH key(s) for Launchpad user {lp_user} failed with error:{error_msg}")
+        log.error(
+            f"Fetching SSH key(s) for Launchpad user {lp_user} failed with error:{error_msg}"
+        )
         return None
 
     output_list = process.stdout.split("\n")

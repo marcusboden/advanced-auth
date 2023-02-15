@@ -14,7 +14,6 @@
 
 import unittest
 from unittest.mock import patch
-from subprocess import CompletedProcess
 
 from src.charm import CharmLocalUsersCharm
 from ops.model import ActiveStatus, BlockedStatus
@@ -59,7 +58,6 @@ class TestCharm(unittest.TestCase):
         # first execution, no rename expected
         mock_rename.assert_not_called()
         mock_get_gr_users.assert_called_once()
-        # ssh keys fetched for launchpad user
         mock_get_lp_keys.assert_called_once_with("lp:test_lpuser")
         # 3 users to configure
         self.assertEqual(mock_conf_user.call_count, 3)
