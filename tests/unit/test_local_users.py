@@ -164,7 +164,7 @@ class TestLocalUsers(unittest.TestCase):
         valid_output = CompletedProcess(
             args=["ssh-import-id", "-o", "-", "lp:test_lpuser"],
             returncode=0,
-            stdout=b"2023-01-01 10:10:10,100 INFO Authorized key \
+            stdout="2023-01-01 10:10:10,100 INFO Authorized key \
             ['2048', 'SHA256:SOMESHA', 'test_lpuser@home', '(RSA)']\
             \n2023-01-01 10:10:10,101 INFO Authorized key \
             ['3072', 'SHA256:ANOTHERSHA', 'test_lpuser@work', '(RSA)'] \
@@ -172,11 +172,14 @@ class TestLocalUsers(unittest.TestCase):
             \nssh-rsa XYZ test_lpuser@work # ssh-import-id lp:test_lpuser\n \
             \n2023-01-01 10:10:10,112 INFO [2] SSH keys [Authorized]\n",
         )
-        invalid_output = CalledProcessError(1, "test_command")
+        # Mocked output for launchpad user that doesn't exist
+        output_invalid_user = CalledProcessError(1, "test_command", stderr="2023-01-01 10:10:10,100 ERROR Launchpad user not found")
+        # Mocked output for launchpad user with no ssh keys added
+        output_no_keys_user = CalledProcessError(1, "test_command", stderr="2023-01-01 10:10:10,100 ERROR No matching keys found for user") 
 
         # returns valid_output the first time subprocess.run mock method is called
-        # returns invalid_output the second time
-        mock_sub_run.side_effect = [valid_output, invalid_output]
+        # returns outputs with error each subsequent call to mocked method
+        mock_sub_run.side_effect = [valid_output, output_invalid_user, output_no_keys_user]
 
         test_lp_keys = [
             "ssh-rsa ABC test_lpuser@home # ssh-import-id lp:test_lpuser",
@@ -184,6 +187,7 @@ class TestLocalUsers(unittest.TestCase):
         ]
         self.assertEqual(local_users.get_lp_ssh_keys(test_lp_user), test_lp_keys)
         self.assertIsNone(local_users.get_lp_ssh_keys("lp:invalid_lpuser"))
+        self.assertIsNone(local_users.get_lp_ssh_keys("lp:nokeys_lpuser"))
 
     def test_parse_gecos(self):
         test_cases = [
