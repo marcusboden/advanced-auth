@@ -157,7 +157,6 @@ def get_lp_ssh_keys(lp_user):
     # Send ssh key(s) to stdout instead of adding to authorized_keys
     cmd = ["ssh-import-id", "-o", "-", lp_user]
     try:
-        # 'check' arg raises an exception in case of non-zero exit code
         process = subprocess.run(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
         )
@@ -167,7 +166,6 @@ def get_lp_ssh_keys(lp_user):
         return None
 
     output_list = process.stdout.split("\n")
-    # Parse ssh key(s) from output
     lp_ssh_keys = [s for s in output_list if s.startswith("ssh-")]
     log.debug(f"SSH public key(s) retrieved for launchpad user {lp_user}")
     return lp_ssh_keys
