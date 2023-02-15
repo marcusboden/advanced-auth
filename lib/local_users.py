@@ -163,7 +163,7 @@ def get_lp_ssh_keys(lp_user):
         )
     except subprocess.CalledProcessError as exception:
         error_msg = exception.stderr.strip().partition("ERROR")[2]
-        log.error(f"Fetching SSH key(s) from Launchpad failed with error:{error_msg}")
+        log.error(f"Fetching SSH key(s) for Launchpad user {lp_user} failed with error:{error_msg}")
         return None
 
     output_list = process.stdout.split("\n")

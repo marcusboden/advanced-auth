@@ -123,7 +123,7 @@ class CharmLocalUsersCharm(CharmBase):
                 # In case it is a launchpad user, fetch their public keys
                 lp_ssh_keys = get_lp_ssh_keys(lp_user)
                 if lp_ssh_keys is None:
-                    error_msg = "Unable to retrieve SSH public key(s) for provided Launchpad user"
+                    error_msg = f"Unable to retrieve SSH public key(s) for provided Launchpad user {lp_user}"
                     log.error(error_msg)
                     self.unit.status = BlockedStatus(error_msg)
                     return
