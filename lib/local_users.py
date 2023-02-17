@@ -156,9 +156,7 @@ def get_lp_ssh_keys(lp_user):
 
     cmd = ["ssh-import-id", "-o", "-", lp_user]
     try:
-        process = subprocess.run(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
-        )
+        process = subprocess.run(cmd, capture_output=True, check=True, text=True)
     except subprocess.CalledProcessError as exception:
         error_msg = exception.stderr.strip().partition("ERROR")[2]
         log.error(
