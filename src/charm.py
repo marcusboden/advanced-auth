@@ -95,48 +95,14 @@ class CharmLocalUsersCharm(CharmBase):
 
         # parse user list from the config
         users = self.config["users"].splitlines()
-        userlist = []
-        usernames = []
-        for line in users:
-            u = line.split(";")
-            if len(u) != 3 or not u[0]:
-                error_msg = "'users' config option contains invalid entries"
-                log.error(error_msg)
-                self.unit.status = BlockedStatus(error_msg)
-                return
-            usernames.append(u[0])
+        output = self.prepare_users(users)
+        if isinstance(output, str):
+            error_msg = output
+            log.error(error_msg)
+            self.unit.status = BlockedStatus(error_msg)
+            return
 
-        unique_users = list(set(usernames))
-        log.debug(f"List of users: {unique_users}")
-        user_objects = {}
-        for username in unique_users:
-            user_objects[username] = {}
-            user_objects[username]["authorized_keys"] = []
-
-        for line in users:
-            username, gecos, ssh_key_input = line.split(";")
-            user_objects[username]["name"] = username
-            user_objects[username]["gecos"] = parse_gecos(gecos)
-            if is_lp_user(ssh_key_input):
-                lp_user = ssh_key_input
-                lp_ssh_keys = get_lp_ssh_keys(lp_user)
-                if lp_ssh_keys is None:
-                    error_msg = f"Unable to retrieve key(s) for provided Launchpad user {lp_user}"
-                    log.error(error_msg)
-                    self.unit.status = BlockedStatus(error_msg)
-                    return
-                user_objects[username]["authorized_keys"].extend(lp_ssh_keys)
-            else:
-                ssh_key = ssh_key_input
-                user_objects[username]["authorized_keys"].append(ssh_key)
-
-        for username in unique_users:
-            user = User(
-                user_objects[username]["name"],
-                user_objects[username]["gecos"],
-                user_objects[username]["authorized_keys"],
-            )
-            userlist.append(user)
+        userlist = output
 
         # check if there are any conflicts between the user list in the config and on the unit,
         # back out if so unless the config flag 'allow-existing-users' is set to True
@@ -179,6 +145,52 @@ class CharmLocalUsersCharm(CharmBase):
             write_sudoers_file(sudoers)
 
         self.unit.status = ActiveStatus()
+
+    def prepare_users(self, users: list) -> list:
+        """Return prepared user list from users config.
+        Return error message string on error"""
+        usernames = []
+        userlist = []
+        user_objects = {}
+
+        for line in users:
+            u = line.split(";")
+            if len(u) != 3 or not u[0]:
+                error_msg = "'users' config option contains invalid entries"
+                return error_msg
+            usernames.append(u[0])
+
+        unique_users = list(set(usernames))
+        log.debug(f"List of users: {unique_users}")
+
+        for username in unique_users:
+            user_objects[username] = {}
+            user_objects[username]["authorized_keys"] = []
+
+        for line in users:
+            username, gecos, ssh_key_input = line.split(";")
+            user_objects[username]["name"] = username
+            user_objects[username]["gecos"] = parse_gecos(gecos)
+            if is_lp_user(ssh_key_input):
+                lp_user = ssh_key_input
+                lp_ssh_keys = get_lp_ssh_keys(lp_user)
+                if lp_ssh_keys is None:
+                    error_msg = f"Unable to retrieve key(s) for provided Launchpad user {lp_user}"
+                    return error_msg
+                user_objects[username]["authorized_keys"].extend(lp_ssh_keys)
+            else:
+                ssh_key = ssh_key_input
+                user_objects[username]["authorized_keys"].append(ssh_key)
+
+        for username in unique_users:
+            user = User(
+                user_objects[username]["name"],
+                user_objects[username]["gecos"],
+                user_objects[username]["authorized_keys"],
+            )
+            userlist.append(user)
+
+        return userlist
 
     def on_stop(self, _):
         """Remove charm managed users and group from the machine."""
