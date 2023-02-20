@@ -27,6 +27,7 @@ class TestCharm(unittest.TestCase):
         self.harness.begin()
 
     @patch("os.makedirs")
+    @patch("src.charm.get_lp_ssh_keys")
     @patch("charmhelpers.core.host.group_exists")
     @patch("src.charm.rename_group")
     @patch("src.charm.get_group_users")
@@ -39,6 +40,7 @@ class TestCharm(unittest.TestCase):
         mock_get_gr_users,
         mock_rename,
         mock_exists,
+        mock_get_lp_keys,
         _,
     ):
         # group doesn't exist yet
@@ -46,15 +48,19 @@ class TestCharm(unittest.TestCase):
 
         # correct configuration
         self.harness.update_config(
-            {"group": "testgroup", "users": "test1;Test 1;key1\ntest2;Test 2;key2"}
+            {
+                "group": "testgroup",
+                "users": "test1;Test 1;key1\ntest2;Test 2;key2\ntest3;Test3;lp:test_lpuser",
+            }
         )
         # a new group must be created
         mock_add_group.assert_called_once_with("testgroup")
         # first execution, no rename expected
         mock_rename.assert_not_called()
         mock_get_gr_users.assert_called_once()
-        # 2 users to configure
-        self.assertEqual(mock_conf_user.call_count, 2)
+        mock_get_lp_keys.assert_called_once_with("lp:test_lpuser")
+        # 3 users to configure
+        self.assertEqual(mock_conf_user.call_count, 3)
         # everything went well
         self.assertIsInstance(self.harness.model.unit.status, ActiveStatus)
 
