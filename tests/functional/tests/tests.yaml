@@ -2,7 +2,6 @@ charm_name: local-users
 gate_bundles:
   - jammy
   - focal
-  - bionic
 dev_bundles:
   - jammy
 tests:
