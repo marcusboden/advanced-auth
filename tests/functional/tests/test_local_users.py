@@ -132,8 +132,6 @@ class TestLocalUsers(unittest.TestCase):
         cmd = ["adduser", "--disabled-password", "--gecos", "test", user]
         zaza.model.run_on_unit(self.principal_unit_name, " ".join(cmd))
 
-        self.wait_for_application_states()
-
         zaza.model.set_application_config(
             self.app_name, {"users": f"{user};Test User;{self.ssh_pub_key}"}
         )
