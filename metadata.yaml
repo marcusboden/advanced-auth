@@ -1,11 +1,11 @@
-name: local-users
+name: advanced-auth
 display-name: |
-  Local Users
+  Advanced Auth
 description: |
-  This charm can be deployed alongside prinicpal charms to create and manage
-  local user accounts and groups.
-summary: A subordinate charm for creating and managing local user accounts and groups on principal units.
-docs: https://discourse.charmhub.io/t/local-users-docs-index/11340
+  This charm creates users on a principal charm and manages their SSH keys. The
+  users and keys are pulled from a remote webserver.
+summary: A subordinate charm to create SSH users from a remote source.
+  #docs: https://discourse.charmhub.io/t/local-users-docs-index/11340
 subordinate: true
 requires:
   general-info:

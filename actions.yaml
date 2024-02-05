@@ -1,0 +1,6 @@
+sync-users:
+  description: sync users from the remote url
+  params:
+    force:
+      type: boolean
+      description: remove more than one user

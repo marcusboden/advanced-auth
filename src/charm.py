@@ -16,7 +16,10 @@
 """Create and manage local user accounts and groups with Juju."""
 
 import logging
+import base64
+import json
 import os
+import requests
 
 from ops.charm import CharmBase
 from ops.framework import StoredState
@@ -31,13 +34,10 @@ from local_users import (
     get_group_users,
     group_exists,
     is_unmanaged_user,
-    parse_gecos,
     remove_group,
     rename_group,
     User,
     write_sudoers_file,
-    is_lp_user,
-    get_lp_ssh_keys,
 )
 
 log = logging.getLogger(__name__)
@@ -53,6 +53,8 @@ class CharmLocalUsersCharm(CharmBase):
         self.framework.observe(self.on.install, self.on_install)
         self.framework.observe(self.on.config_changed, self.on_config_changed)
         self.framework.observe(self.on.stop, self.on_stop)
+        self.framework.observe(self.on.sync_users_action, self._on_sync_users_action)
+        self.cert_file = "/etc/ssl/certs/remote-cert.pem"
         self._stored.set_default(group="")
 
     def on_install(self, _):
@@ -93,16 +95,45 @@ class CharmLocalUsersCharm(CharmBase):
         # is needed on future config_changed events
         self._stored.group = group
 
-        # parse user list from the config
-        users = self.config["users"].splitlines()
-        output = self.prepare_users(users)
-        if isinstance(output, str):
-            error_msg = output
+        if not self.config["remote-user-source"]:
+            error_msg = "remote-user-source not specified"
             log.error(error_msg)
             self.unit.status = BlockedStatus(error_msg)
             return
 
-        userlist = output
+        if self.config["cert"]:
+            with open(self.cert_file, "w") as f:
+                try:
+                    f.write(base64.b64decode(self.config["cert"]).decode("utf-8"))
+                except base64.binascii.Error as e:
+                    log.error(e)
+                    self.unit.status = BlockedStatus(e)
+                    return
+
+        else:
+            error_msg = "remote-user-source needs cert to be configured"
+            log.error(error_msg)
+            self.unit.status = BlockedStatus(error_msg)
+            return
+
+        # Configure custom /etc/sudoers.d file
+        sudoers = self.config["sudoers"]
+        error = check_sudoers_file(sudoers)
+        if error:
+            msg = "parse error in sudoers config, check juju debug-log for more information"
+            self.unit.status = BlockedStatus(msg)
+            return
+        else:
+            write_sudoers_file(sudoers)
+
+        self.unit.status = ActiveStatus()
+
+    def _on_sync_users_action(self, event):
+        # parse user list from the config
+        group = self.config["group"]
+
+        # sync remote users only via action
+        userlist = self.get_users()
 
         # check if there are any conflicts between the user list in the config and on the unit,
         # back out if so unless the config flag 'allow-existing-users' is set to True
@@ -122,75 +153,32 @@ class CharmLocalUsersCharm(CharmBase):
 
         # remove users that are no longer in the config but still exist on the unit
         current_users = get_group_users(group)
-        config_usernames = [u.name for u in userlist]
-        users_to_remove = set(current_users) - set(config_usernames)
+        remote_usernames = [u.name for u in userlist]
+        users_to_remove = set(current_users) - set(remote_usernames)
+        users_to_add = set(remote_usernames) - set(current_users)
         if users_to_remove:
-            log.debug("removing users: %s", list(users_to_remove))
+            if len(users_to_remove) > 1 and (
+                ("force" not in event.params or not event.params["force"])
+            ):
+                msg = "more than 1 user to remove. Danger!\n"
+                msg += f"Users to remove: {list(users_to_remove)}"
+                log.error(msg)
+                event.fail(msg)
+                return
+
+            log.debug(f"removing users: {list(users_to_remove)}")
+            event.log(f"removing users: {list(users_to_remove)}")
             for u in users_to_remove:
-                delete_user(u, backup_path)
+                delete_user(u, self.config["backup-path"])
 
         # configure user accounts specified in the config
         authorized_keys_path = self.config["ssh-authorized-keys"]
         for user in userlist:
             configure_user(user, group, authorized_keys_path)
 
-        # Configure custom /etc/sudoers.d file
-        sudoers = self.config["sudoers"]
-        error = check_sudoers_file(sudoers)
-        if error:
-            msg = "parse error in sudoers config, check juju debug-log for more information"
-            self.unit.status = BlockedStatus(msg)
-            return
-        else:
-            write_sudoers_file(sudoers)
-
-        self.unit.status = ActiveStatus()
-
-    def prepare_users(self, users: list) -> list:
-        """Return prepared user list from users config.
-        Return error message string on error"""
-        usernames = []
-        userlist = []
-        user_objects = {}
-
-        for line in users:
-            u = line.split(";")
-            if len(u) != 3 or not u[0]:
-                error_msg = "'users' config option contains invalid entries"
-                return error_msg
-            usernames.append(u[0])
-
-        unique_users = list(set(usernames))
-        log.debug(f"List of users: {unique_users}")
-
-        for username in unique_users:
-            user_objects[username] = {}
-            user_objects[username]["authorized_keys"] = []
-
-        for line in users:
-            username, gecos, ssh_key_input = line.split(";")
-            user_objects[username]["name"] = username
-            user_objects[username]["gecos"] = parse_gecos(gecos)
-            if is_lp_user(ssh_key_input):
-                lp_user = ssh_key_input
-                lp_ssh_keys = get_lp_ssh_keys(lp_user)
-                if lp_ssh_keys is None:
-                    error_msg = f"Unable to retrieve key(s) for provided Launchpad user {lp_user}"
-                    return error_msg
-                user_objects[username]["authorized_keys"].extend(lp_ssh_keys)
-            else:
-                ssh_key = ssh_key_input
-                user_objects[username]["authorized_keys"].append(ssh_key)
-
-        for username in unique_users:
-            user = User(
-                user_objects[username]["name"],
-                user_objects[username]["gecos"],
-                user_objects[username]["authorized_keys"],
-            )
-            userlist.append(user)
-
-        return userlist
+        event.set_results(
+            {"users-added": users_to_add, "users-removed": users_to_remove}
+        )
 
     def on_stop(self, _):
         """Remove charm managed users and group from the machine."""
@@ -201,6 +189,21 @@ class CharmLocalUsersCharm(CharmBase):
             delete_user(user, backup_path)
         remove_group(group)
         self.unit.status = ActiveStatus()
+
+    def get_users(self):
+        resp = requests.get(self.config["remote-user-source"], verify=self.cert_file)
+        """Return prepared user list from users config.
+        Return error message string on error"""
+        users = json.loads(resp.text)
+        userlist = []
+
+        log.debug(f"List of users: {list(users.keys())}")
+
+        for username in users:
+            user = User(username, users[username]["gecos"], users[username]["keys"])
+            userlist.append(user)
+
+        return userlist
 
 
 if __name__ == "__main__":
