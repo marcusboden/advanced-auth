@@ -1,5 +1,6 @@
 """Functional tests for charm-local-users."""
 from subprocess import run
+from time import sleep
 from tempfile import NamedTemporaryFile
 import unittest
 
@@ -25,7 +26,7 @@ class TestLocalUsers(unittest.TestCase):
         zaza.model.block_until_all_applications_idle() seems to not wait for
         (config-changed) to settle. Causing a race.
         """
-        zaza.model.wait_for_agent_status()
+        sleep(10)
         zaza.model.block_until_all_units_idle()
 
     def run_command_ssh(self, user, command, key=None):
@@ -136,7 +137,7 @@ class TestLocalUsers(unittest.TestCase):
             self.app_name, {"users": f"{user};Test User;{self.ssh_pub_key}"}
         )
 
-        zaza.model.wait_for_agent_status()
+        sleep(10)
         zaza.model.wait_for_application_states(
             states={
                 self.app_name: {
