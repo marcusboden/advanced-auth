@@ -16,10 +16,8 @@
 """Create and manage local user accounts and groups with Juju."""
 
 import logging
-import base64
-import json
 import os
-import requests
+import pathlib
 
 from ops.charm import CharmBase
 from ops.framework import StoredState
@@ -28,19 +26,21 @@ from ops.model import ActiveStatus, BlockedStatus
 
 from local_users import (
     add_group,
-    configure_user,
     check_sudoers_file,
     delete_user,
     get_group_users,
     group_exists,
-    is_unmanaged_user,
     remove_group,
     rename_group,
-    User,
     write_sudoers_file,
 )
 
+from common import AdvancedAuthSyncer, CHARM_DATA
+
 log = logging.getLogger(__name__)
+
+CRON_SCRIPT_PATH = CHARM_DATA / "cron-sync.py"
+CRON_PATH = pathlib.Path("/etc/cron.d/advanced-auth-sync")
 
 
 class CharmLocalUsersCharm(CharmBase):
@@ -54,11 +54,24 @@ class CharmLocalUsersCharm(CharmBase):
         self.framework.observe(self.on.config_changed, self.on_config_changed)
         self.framework.observe(self.on.stop, self.on_stop)
         self.framework.observe(self.on.sync_users_action, self._on_sync_users_action)
-        self.cert_file = "/etc/ssl/certs/remote-cert.pem"
         self._stored.set_default(group="")
 
     def on_install(self, _):
         self.unit.status = ActiveStatus()
+
+    def _install_cron_script(self):
+        cron_template = pathlib.Path(
+            self.charm_dir / "templates/cron-sync.py"
+        ).read_text()
+        cron_script = cron_template.replace("REPLACE_CHARMDIR", str(self.charm_dir))
+
+        fd = os.open(str(CRON_SCRIPT_PATH), os.O_CREAT | os.O_WRONLY, 0o755)
+        with open(fd, "w") as f:
+            f.write(cron_script)
+
+    def _install_cron(self):
+        cron_job = f"* * * * * root {CRON_SCRIPT_PATH}\n"
+        CRON_PATH.write_text(cron_job)
 
     def on_config_changed(self, _):
         """Create and update system users and groups to match the config.
@@ -101,17 +114,8 @@ class CharmLocalUsersCharm(CharmBase):
             self.unit.status = BlockedStatus(error_msg)
             return
 
-        if self.config["cert"]:
-            with open(self.cert_file, "w") as f:
-                try:
-                    f.write(base64.b64decode(self.config["cert"]).decode("utf-8"))
-                except base64.binascii.Error as e:
-                    log.error(e)
-                    self.unit.status = BlockedStatus(e)
-                    return
-
-        else:
-            error_msg = "remote-user-source needs cert to be configured"
+        if not self.config["portal-secret"]:
+            error_msg = "Config option 'protal-secret' needs to be configured"
             log.error(error_msg)
             self.unit.status = BlockedStatus(error_msg)
             return
@@ -126,59 +130,21 @@ class CharmLocalUsersCharm(CharmBase):
         else:
             write_sudoers_file(sudoers)
 
+        syncer = AdvancedAuthSyncer(self._get_config())
+
+        log.warning(self._get_config)
+        syncer.write_config()
+
+        self._install_cron_script()
+        self._install_cron()
+
         self.unit.status = ActiveStatus()
 
     def _on_sync_users_action(self, event):
+
+        syncer = AdvancedAuthSyncer(self._get_config(), event)
+        syncer.sync_users()
         # parse user list from the config
-        group = self.config["group"]
-
-        # sync remote users only via action
-        userlist = self.get_users()
-
-        # check if there are any conflicts between the user list in the config and on the unit,
-        # back out if so unless the config flag 'allow-existing-users' is set to True
-        unmanaged_users = []
-        for user in userlist:
-            if is_unmanaged_user(user.name, group):
-                unmanaged_users.append(user.name)
-        if len(unmanaged_users) > 0:
-            msg = "users {} already exist and are not members of {}".format(
-                unmanaged_users, group
-            )
-            if not self.config["allow-existing-users"]:
-                log.error(msg)
-                self.unit.status = BlockedStatus(msg)
-                return
-            log.warning(msg)
-
-        # remove users that are no longer in the config but still exist on the unit
-        current_users = get_group_users(group)
-        remote_usernames = [u.name for u in userlist]
-        users_to_remove = set(current_users) - set(remote_usernames)
-        users_to_add = set(remote_usernames) - set(current_users)
-        if users_to_remove:
-            if len(users_to_remove) > 1 and (
-                ("force" not in event.params or not event.params["force"])
-            ):
-                msg = "more than 1 user to remove. Danger!\n"
-                msg += f"Users to remove: {list(users_to_remove)}"
-                log.error(msg)
-                event.fail(msg)
-                return
-
-            log.debug(f"removing users: {list(users_to_remove)}")
-            event.log(f"removing users: {list(users_to_remove)}")
-            for u in users_to_remove:
-                delete_user(u, self.config["backup-path"])
-
-        # configure user accounts specified in the config
-        authorized_keys_path = self.config["ssh-authorized-keys"]
-        for user in userlist:
-            configure_user(user, group, authorized_keys_path)
-
-        event.set_results(
-            {"users-added": users_to_add, "users-removed": users_to_remove}
-        )
 
     def on_stop(self, _):
         """Remove charm managed users and group from the machine."""
@@ -188,22 +154,20 @@ class CharmLocalUsersCharm(CharmBase):
         for user in users:
             delete_user(user, backup_path)
         remove_group(group)
+        # TODO: Remove config file
         self.unit.status = ActiveStatus()
 
-    def get_users(self):
-        resp = requests.get(self.config["remote-user-source"], verify=self.cert_file)
-        """Return prepared user list from users config.
-        Return error message string on error"""
-        users = json.loads(resp.text)
-        userlist = []
-
-        log.debug(f"List of users: {list(users.keys())}")
-
-        for username in users:
-            user = User(username, users[username]["gecos"], users[username]["keys"])
-            userlist.append(user)
-
-        return userlist
+    def _get_config(self):
+        """Get the necessary config values for helper class"""
+        keys = (
+            "portal-secret",
+            "remote-user-source",
+            "backup-path",
+            "group",
+            "ssh-authorized-keys",
+            "allow-existing-users",
+        )
+        return {k: self.config[k] for k in keys}
 
 
 if __name__ == "__main__":

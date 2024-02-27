@@ -27,11 +27,11 @@ options:
     type: string
     description:
       A remote URL to get the users string from.
-  cert:
+  portal-secret:
     default: ""
     type: string
-    description:
-      base64 encoded string
+    description: 
+      A pre-shared secret used by the portal and this charm to verify validity of the data.
   sudoers:
     default: ""
     type: string
